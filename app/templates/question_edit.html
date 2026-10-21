@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}编辑题目 · {{ survey.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>编辑题目</h1>
+    <p class="subtle" style="margin:0;">
+      {{ survey.title }} · 第 {{ question.order + 1 }} 题 · {{ question.type|type_label }}
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('surveys.edit', sid=survey._id) }}">返回问卷</a>
+  </div>
+</div>
+
+<form method="post">
+  <div class="panel">
+    <div class="panel-head"><h2>题目内容</h2></div>
+
+    <div class="grid grid-2">
+      <label class="field">
+        <span>题型</span>
+        <select name="type" id="q-type">
+          <option value="single" {% if question.type == 'single' %}selected{% endif %}>单选题</option>
+          <option value="multiple" {% if question.type == 'multiple' %}selected{% endif %}>多选题</option>
+          <option value="text" {% if question.type == 'text' %}selected{% endif %}>文本填空题</option>
+          <option value="number" {% if question.type == 'number' %}selected{% endif %}>数字填空题</option>
+        </select>
+      </label>
+      <div class="field" style="padding-top:24px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+          <input type="checkbox" name="required" {% if question.required %}checked{% endif %}> 必答题
+        </label>
+      </div>
+    </div>
+
+    <label class="field">
+      <span>题干</span>
+      <input type="text" name="title" value="{{ question.title }}" maxlength="500" required>
+    </label>
+
+    <div data-type-block="single multiple">
+      <label class="field">
+        <span>选项（每行一个，按行顺序自动编号 A / B / C …）</span>
+        <textarea name="options">{{ options_text }}</textarea>
+      </label>
+      <p class="subtle">注意：调整选项顺序会改变 A/B/C 编号，原有按选项设置的跳转可能指向别的选项，请在下方重新确认。</p>
+    </div>
+
+    <div data-type-block="multiple" class="grid grid-3">
+      <label class="field"><span>最少选择</span>
+        <input type="number" min="0" name="min_choices" value="{{ question.rules.get('min_choices', '') }}">
+      </label>
+      <label class="field"><span>最多选择</span>
+        <input type="number" min="0" name="max_choices" value="{{ question.rules.get('max_choices', '') }}">
+      </label>
+      <label class="field"><span>必须选择</span>
+        <input type="number" min="0" name="exact_choices" value="{{ question.rules.get('exact_choices', '') }}">
+      </label>
+    </div>
+
+    <div data-type-block="text" class="grid grid-2">
+      <label class="field"><span>最少字数</span>
+        <input type="number" min="0" name="min_length" value="{{ question.rules.get('min_length', '') }}">
+      </label>
+      <label class="field"><span>最多字数</span>
+        <input type="number" min="0" name="max_length" value="{{ question.rules.get('max_length', '') }}">
+      </label>
+    </div>
+
+    <div data-type-block="number" class="grid grid-3">
+      <label class="field"><span>最小值</span>
+        <input type="number" step="any" name="min_value" value="{{ question.rules.get('min_value', '') }}">
+      </label>
+      <label class="field"><span>最大值</span>
+        <input type="number" step="any" name="max_value" value="{{ question.rules.get('max_value', '') }}">
+      </label>
+      <div class="field" style="padding-top:24px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+          <input type="checkbox" name="integer" {% if question.rules.get('integer') %}checked{% endif %}> 必须为整数
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>跳转规则</h2></div>
+    <p class="subtle">规则保存在问卷数据里，不写死在程序中。按从上到下的顺序匹配，命中第一条即跳转。</p>
+
+    {% if question.type in ('single', 'multiple') %}
+      {% for opt in question.options %}
+        <div class="grid grid-2" style="align-items:end;">
+          <label class="field" style="margin-bottom:10px;">
+            <span>当选择 {{ opt.key }}. {{ opt.label }} 时</span>
+            <select name="jump_{{ opt.key }}">
+              <option value="next" {% if not jumps_by_option.get(opt.key) %}selected{% endif %}>按默认顺序继续</option>
+              <option value="end" {% if jumps_by_option.get(opt.key) == 'end' %}selected{% endif %}>结束问卷</option>
+              {% for target in target_options %}
+                <option value="{{ target.value }}" {% if jumps_by_option.get(opt.key) == target.value %}selected{% endif %}>跳到 {{ target.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    {% if question.type == 'number' %}
+      <div class="grid grid-3">
+        <label class="field">
+          <span>条件</span>
+          <select name="number_op">
+            <option value="">不使用</option>
+            {% for op, label in [('eq','等于'),('neq','不等于'),('gt','大于'),('gte','不小于'),('lt','小于'),('lte','不大于'),('between','介于两者之间')] %}
+              <option value="{{ op }}" {% if number_jump and number_jump.condition.op == op %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field"><span>数值</span>
+          <input type="number" step="any" name="number_value" value="{{ number_jump.condition.value if number_jump else '' }}">
+        </label>
+        <label class="field"><span>第二个数值（仅「介于」）</span>
+          <input type="number" step="any" name="number_value2" value="{{ number_jump.condition.get('value2', '') if number_jump else '' }}">
+        </label>
+      </div>
+      <label class="field">
+        <span>跳转到</span>
+        <select name="number_target">
+          <option value="next">不使用跳转</option>
+          <option value="end" {% if number_jump and number_jump.target == 'end' %}selected{% endif %}>结束问卷</option>
+          {% for target in target_options %}
+            <option value="{{ target.value }}" {% if number_jump and number_jump.target == target.value %}selected{% endif %}>跳到 {{ target.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endif %}
+
+    {% if question.type == 'text' %}
+      <div class="grid grid-2">
+        <label class="field"><span>当内容正好等于（留空表示不使用）</span>
+          <input type="text" name="text_equals" value="{{ text_jump.condition.get('equals', '') if text_jump else '' }}">
+        </label>
+        <label class="field"><span>跳转到</span>
+          <select name="text_target">
+            <option value="next">不使用跳转</option>
+            <option value="end" {% if text_jump and text_jump.target == 'end' %}selected{% endif %}>结束问卷</option>
+            {% for target in target_options %}
+              <option value="{{ target.value }}" {% if text_jump and text_jump.target == target.value %}selected{% endif %}>跳到 {{ target.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+    {% endif %}
+
+    <label class="field" style="max-width:320px;">
+      <span>以上规则都未命中时</span>
+      <select name="default_next">
+        <option value="next" {% if default_next != 'end' %}selected{% endif %}>继续下一题</option>
+        <option value="end" {% if default_next == 'end' %}selected{% endif %}>结束问卷</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="actions" style="display:flex;gap:10px;">
+    <button class="btn" type="submit">保存题目</button>
+    <a class="btn btn-ghost" href="{{ url_for('surveys.edit', sid=survey._id) }}">取消</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var select = document.getElementById('q-type');
+    var blocks = document.querySelectorAll('[data-type-block]');
+    function refresh() {
+      var type = select.value;
+      blocks.forEach(function (block) {
+        var types = block.getAttribute('data-type-block').split(' ');
+        block.style.display = types.indexOf(type) !== -1 ? '' : 'none';
+      });
+    }
+    select.addEventListener('change', refresh);
+    refresh();
+  })();
+</script>
+{% endblock %}

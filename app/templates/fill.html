@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ survey.title }} · 填写问卷{% endblock %}
+{% block content %}
+<div class="fill-wrap">
+  <div class="fill-card" id="fill-card">
+    <div class="fill-progress"><i id="progress-bar"></i></div>
+
+    <div id="survey-intro" {% if first_question %}style="display:none"{% endif %}>
+      <h1>{{ survey.title }}</h1>
+      <p class="subtle">{{ survey.description or '感谢参与本次问卷' }}</p>
+      <button class="btn" id="start-btn">开始填写</button>
+    </div>
+
+    <div id="question-view" {% if not first_question %}style="display:none"{% endif %}>
+      <div class="subtle" id="q-index"></div>
+      <div class="q-title" id="q-title"></div>
+      <div class="q-hint" id="q-hint"></div>
+      <div id="q-body"></div>
+      <div class="fill-error" id="fill-error"></div>
+      <div class="fill-actions">
+        <span class="subtle" id="q-progress-text"></span>
+        <button class="btn" id="next-btn">下一题</button>
+      </div>
+    </div>
+
+    <div id="done-view" style="display:none">
+      <h1>可以提交了</h1>
+      <p class="subtle">你已经完成全部题目，提交后答案会被保存到数据库。</p>
+      <div class="fill-error" id="submit-error"></div>
+      <button class="btn" id="submit-btn">提交问卷</button>
+    </div>
+
+    <div id="thanks-view" style="display:none">
+      <h1>提交成功</h1>
+      <p class="subtle">你的回答已经记录，感谢参与。</p>
+      <a class="btn btn-ghost" href="{{ url_for('surveys.dashboard') }}">返回我的问卷</a>
+    </div>
+  </div>
+</div>
+
+<script id="survey-data" type="application/json">
+{{ {
+  "slug": survey.slug,
+  "title": survey.title,
+  "allow_anonymous": survey.allow_anonymous,
+  "first": first_question
+}|tojson }}
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='fill.js') }}"></script>
+{% endblock %}

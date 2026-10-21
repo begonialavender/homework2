@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}我的问卷 · 问卷系统{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>我的问卷</h1>
+    <p class="subtle" style="margin:0;">共 {{ surveys|length }} 份问卷，只显示你自己创建的问卷</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('surveys.create') }}">新建问卷</a>
+  </div>
+</div>
+
+{% if surveys %}
+  <div class="list">
+    {% for s in surveys %}
+      <div class="list-row">
+        <div class="list-main">
+          <div class="list-title">
+            <a href="{{ url_for('surveys.edit', sid=s._id) }}">{{ s.title }}</a>
+            <span class="tag tag-{{ s.status }}">{{ s.status|status_label }}</span>
+          </div>
+          <div class="list-meta">
+            <span>{{ s.question_count }} 道题</span>
+            <span>{{ counts.get(s._id, 0) }} 份回答</span>
+            <span>创建于 {{ s.created_at|dt }}</span>
+            {% if s.deadline %}<span>截止 {{ s.deadline|dt }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="actions" style="display:flex;gap:8px;">
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('surveys.edit', sid=s._id) }}">编辑</a>
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('stats.overview', sid=s._id) }}">统计</a>
+          {% if s.status == 'published' %}
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('fill.show', slug=s.slug) }}" target="_blank">填写链接</a>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty">
+    <p style="margin:0 0 12px;">还没有任何问卷</p>
+    <a class="btn" href="{{ url_for('surveys.create') }}">创建第一份问卷</a>
+  </div>
+{% endif %}
+{% endblock %}

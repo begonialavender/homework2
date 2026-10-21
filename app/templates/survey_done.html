@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}提交成功 · {{ survey.title }}{% endblock %}
+{% block content %}
+<div class="fill-wrap" style="max-width:560px;">
+  <div class="panel" style="text-align:center;padding:44px 28px;">
+    <h1>提交成功</h1>
+    <p class="subtle">你的回答已经保存，感谢参与「{{ survey.title }}」。</p>
+    <a class="btn btn-ghost" href="{{ url_for('surveys.dashboard') }}">返回我的问卷</a>
+  </div>
+</div>
+{% endblock %}

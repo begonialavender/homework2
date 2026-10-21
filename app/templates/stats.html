@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}统计 · {{ survey.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ single_question.title if single_question else '统计结果' }}</h1>
+    <p class="subtle" style="margin:0;">
+      {{ survey.title }} · 共有 {{ total_responses }} 份回答
+      {% if not single_question %}· 统计按已提交的数据实时聚合{% endif %}
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('surveys.edit', sid=survey._id) }}">返回问卷</a>
+    {% if single_question %}
+      <a class="btn btn-ghost" href="{{ url_for('stats.overview', sid=survey._id) }}">整卷统计</a>
+      <a class="btn" href="{{ url_for('export.export_question', sid=survey._id, qid=single_question._id) }}">导出本题 Excel</a>
+    {% else %}
+      <a class="btn" href="{{ url_for('export.export_survey', sid=survey._id) }}">导出 Excel</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if total_responses == 0 %}
+  <div class="empty">还没有人提交，暂时没有统计数据</div>
+{% endif %}
+
+{% for question, data in rows %}
+  <div class="panel" id="q-{{ question._id }}">
+    <div class="panel-head">
+      <h2>第 {{ question.order + 1 }} 题 · {{ question.title }}</h2>
+      <span class="tag">{{ question.type|type_label }}</span>
+    </div>
+    <div class="subtle" style="margin-bottom:10px;">
+      回答人数：{{ data.answered }} / {{ total_responses }}
+      {% if total_responses %}（作答率 {{ ((data.answered * 100 / total_responses) | round(1)) }}%）{% endif %}
+    </div>
+
+    {% if data.type in ('single', 'multiple') %}
+      <div class="stat-row">
+        {% for opt in data.options %}
+          <div>
+            <div class="stat-line">
+              <span>{{ opt.key }}. {{ opt.label }}</span>
+              <span>{{ opt.count }} 人 · {{ opt.percent }}%</span>
+            </div>
+            <div class="stat-bar"><i style="width: {{ opt.percent }}%"></i></div>
+          </div>
+        {% endfor %}
+      </div>
+      {% if data.type == 'multiple' %}
+        <p class="subtle" style="margin-bottom:0;">多选题的百分比 = 选择该选项的人数 / 回答本题的人数，可超过 100%。</p>
+      {% endif %}
+    {% elif data.type == 'number' %}
+      <div class="kpis" style="margin:8px 0 14px;">
+        <div class="kpi">平均值<b>{{ data.average if data.average is not none else '—' }}</b></div>
+        <div class="kpi">最小值<b>{{ data.minimum if data.minimum is not none else '—' }}</b></div>
+        <div class="kpi">最大值<b>{{ data.maximum if data.maximum is not none else '—' }}</b></div>
+        <div class="kpi">样本数<b>{{ data['values']|length }}</b></div>
+      </div>
+      <div class="subtle">全部取值（升序）：{{ data['values']|join('、') if data['values'] else '—' }}</div>
+    {% else %}
+      <div class="subtle" style="margin-bottom:8px;">
+        平均长度：{{ data.average_length if data.average_length is not none else '—' }} 字
+      </div>
+      <div class="list">
+        {% for entry in data.entries %}
+          <div class="list-row" style="padding:10px 14px;">
+            <div class="list-main">{{ entry.value }}</div>
+            <span class="subtle">{{ entry.submitted_at|dt }}</span>
+          </div>
+        {% else %}
+          <div class="empty" style="padding:20px;">暂无填写内容</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if not single_question %}
+      <p style="margin:12px 0 0;">
+        <a class="subtle" href="{{ url_for('stats.single', sid=survey._id, qid=question._id) }}">单独查看本题 →</a>
+      </p>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="empty">这份问卷还没有题目</div>
+{% endfor %}
+{% endblock %}
