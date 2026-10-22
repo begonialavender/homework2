@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}使用情况 · {{ head.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>这道题被谁在用</h1>
+    <p class="subtle" style="margin:0;">
+      {{ head.title }} · <span class="mono">{{ head.lineage_id }}</span> · 共 {{ usage|length }} 份问卷
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('bank.question', lineage=head.lineage_id) }}">返回题目</a>
+    <a class="btn" href="{{ url_for('stats.question_overview', lineage=head.lineage_id) }}">跨问卷统计</a>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>使用明细</h2><span class="subtle">改题前先看这里，避免影响别人的问卷</span></div>
+  <div class="list">
+    {% for row in usage %}
+      <div class="list-row">
+        <div class="list-main">
+          <div class="list-title">
+            {{ row.survey.title }}
+            <span class="tag tag-{{ row.survey.status }}">{{ row.survey.status|status_label }}</span>
+          </div>
+          <div class="list-meta">
+            所有者：{{ row.owner_name }}
+            · 使用版本：v{{ row.versions|join('、v') }}
+            · 位于第 {{ row.order + 1 }} 题
+            · {{ row.responses }} 份回答
+            · 创建于 {{ row.survey.created_at|dt }}
+          </div>
+        </div>
+        <div class="question-tools">
+          {% if row.survey.owner_id == current_user._id %}
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('surveys.edit', sid=row.survey._id) }}">打开问卷</a>
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('stats.overview', sid=row.survey._id) }}">问卷统计</a>
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <div class="empty">还没有问卷使用这道题。</div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>版本分布</h2></div>
+  <div class="subtle">
+    各问卷固定在自己选用时的那一版，因此同一道题可以同时存在多个版本：
+    {% for item in chain %}
+      v{{ item.version }}{% if not loop.last %} → {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

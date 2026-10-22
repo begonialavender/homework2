@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}注册 · 问卷系统{% endblock %}
+{% block content %}
+<div class="fill-wrap" style="max-width:420px;">
+  <div class="panel">
+    <h1>注册</h1>
+    <p class="subtle" style="margin-top:0;">只需用户名和密码即可创建问卷</p>
+    <form method="post">
+      <label class="field">
+        <span>用户名（3 ~ 32 个字符）</span>
+        <input type="text" name="username" value="{{ username }}" required autofocus>
+      </label>
+      <label class="field">
+        <span>密码（至少 6 位）</span>
+        <input type="password" name="password" required>
+      </label>
+      <label class="field">
+        <span>确认密码</span>
+        <input type="password" name="confirm" required>
+      </label>
+      <button class="btn" type="submit" style="width:100%;justify-content:center;">注册</button>
+    </form>
+    <p class="subtle" style="margin-bottom:0;margin-top:16px;">
+      已有账号？<a href="{{ url_for('auth.login') }}">去登录</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

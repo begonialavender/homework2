@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}跨问卷统计 · {{ data.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ data.title }}</h1>
+    <p class="subtle" style="margin:0;">
+      跨问卷统计 · <span class="mono">{{ data.lineage_id }}</span>
+      · {{ data.type|type_label }} · 涉及 {{ data.survey_count }} 份问卷
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('bank.question', lineage=data.lineage_id) }}">返回题目</a>
+    <a class="btn btn-ghost" href="{{ url_for('bank.usage', lineage=data.lineage_id) }}">使用情况</a>
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="kpi">回答总数<b>{{ data.answered }}</b></div>
+  <div class="kpi">涉及问卷<b>{{ data.survey_count }}</b></div>
+  <div class="kpi">版本数<b>{{ data.versions|length }}</b></div>
+</div>
+
+{% if data.answered == 0 %}
+  <div class="empty">这道题还没有收集到回答。</div>
+{% endif %}
+
+{% if data.type in ('single', 'multiple') %}
+<div class="panel">
+  <div class="panel-head"><h2>总体分布</h2><span class="subtle">把同一道题的各版本合在一起看</span></div>
+  <div class="stat-row">
+    {% for opt in data.options %}
+      <div>
+        <div class="stat-line">
+          <span>{{ opt.key }}. {{ opt.label }}</span>
+          <span>{{ opt.count }} 人 · {{ opt.percent }}%</span>
+        </div>
+        <div class="stat-bar"><i style="width: {{ opt.percent }}%"></i></div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if data.type == 'multiple' %}
+    <p class="subtle" style="margin-bottom:0;">多选题百分比 = 选择人数 / 回答本题的总人数，可超过 100%。</p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>按版本拆分</h2><span class="subtle">选项中如果有版本差异，以该版本的叫法为准</span></div>
+  <div class="list">
+    {% for row in data.version_totals %}
+      <div class="list-row">
+        <div class="list-main">
+          <div class="list-title">v{{ row.version }}</div>
+          <div class="list-meta">
+            {% for key, count in row.counts.items() %}
+              {% for opt in data.options %}{% if opt.key == key %}{{ opt.labels_by_version.get(row.version, opt.label) }}：{{ count }}{% endif %}{% endfor %}
+              {% if not loop.last %} ｜ {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+        <span class="subtle">{{ row.count }} 份作答</span>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% elif data.type == 'number' %}
+<div class="panel">
+  <div class="panel-head"><h2>总体数值</h2></div>
+  <div class="kpis">
+    <div class="kpi">平均值<b>{{ data.average if data.average is not none else '—' }}</b></div>
+    <div class="kpi">最小值<b>{{ data.minimum if data.minimum is not none else '—' }}</b></div>
+    <div class="kpi">最大值<b>{{ data.maximum if data.maximum is not none else '—' }}</b></div>
+    <div class="kpi">样本数<b>{{ data.count }}</b></div>
+  </div>
+</div>
+
+{% else %}
+<div class="panel">
+  <div class="panel-head"><h2>文本回答</h2><span class="subtle">共 {{ data.entries_total }} 条，按提交时间倒序</span></div>
+  <div class="subtle" style="margin-bottom:8px;">
+    平均长度：{{ data.average_length if data.average_length is not none else '—' }} 字
+  </div>
+  <div class="list">
+    {% for entry in data.entries %}
+      <div class="list-row" style="padding:10px 14px;">
+        <div class="list-main">{{ entry.value }}</div>
+        <span class="subtle">v{{ entry.version }} · {{ entry.submitted_at|dt }}</span>
+      </div>
+    {% else %}
+      <div class="empty" style="padding:20px;">暂无填写内容</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="panel">
+  <div class="panel-head"><h2>按问卷拆分</h2><span class="subtle">同一道题在不同问卷里用的版本可能不同</span></div>
+  <div class="list">
+    {% for row in data.surveys %}
+      <div class="list-row">
+        <div class="list-main">
+          <div class="list-title">
+            {{ row.survey.title }}
+            <span class="tag tag-{{ row.survey.status }}">{{ row.survey.status|status_label }}</span>
+          </div>
+          <div class="list-meta">
+            所有者：{{ row.owner_name }} · 使用版本 v{{ row.versions|join('、v') }} · {{ row.responses }} 份回答
+          </div>
+        </div>
+        {% if row.survey.owner_id == current_user._id %}
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('stats.overview', sid=row.survey._id) }}">问卷统计</a>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="empty">这道题还没有被任何问卷使用。</div>
+    {% endfor %}
+  </div>
+</div>
+
+<p class="subtle">
+  统计口径：按回答里记录的 <span class="mono">lineage_id</span> 聚合，因此同一道题的不同版本会合并在一起；
+  题目被删除或问卷被删除时，只要回答还在，历史数据仍会保留。
+</p>
+{% endblock %}

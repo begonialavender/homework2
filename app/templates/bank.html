@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}题库 · 问卷系统{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>题库{% if bank %} · {{ bank.name }}{% endif %}</h1>
+    <p class="subtle" style="margin:0;">
+      可复用的题目都放在这里。每道题保留完整版本历史；问卷用的是某一版的快照，
+      所以改题、发新版本都不会影响已经发出去的问卷。
+    </p>
+  </div>
+  <div class="actions">
+    {% if bank %}
+      <a class="btn btn-ghost" href="{{ url_for('bank.index') }}">全部题目</a>
+    {% endif %}
+    <a class="btn" href="{{ url_for('bank.new_question', bank=bank._id if bank else None) }}">新建题目</a>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>题库分组</h2>
+    <span class="subtle">题库只是分组，解散题库不会删除题目本身</span>
+  </div>
+  <div class="grid grid-3">
+    {% for item in banks %}
+      <div class="question-card">
+        <div class="question-title">{{ item.name }}</div>
+        <div class="subtle">
+          {{ '我创建的' if item.owner_id == current_user._id else '共享给我' }}
+          · {% if item.visibility == 'shared' and not item.shared_with %}公开{% elif item.visibility == 'shared' %}指定共享{% else %}私有{% endif %}
+          · {{ bank_counts.get(item._id, 0) }} 道题
+        </div>
+        {% if item.description %}<div class="option-line">{{ item.description }}</div>{% endif %}
+        <div class="question-tools">
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('bank.index', bank=item._id) }}">查看</a>
+          {% if item.owner_id == current_user._id %}
+            <form method="post" action="{{ url_for('bank.delete_bank', bid=item._id) }}"
+                  onsubmit="return confirm('解散这个题库？题目本身会保留。');">
+              <button class="btn btn-danger btn-sm" type="submit">解散</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <div class="empty">还没有题库。可以在下面新建一个，把常用题整理进去。</div>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="{{ url_for('bank.create_bank') }}" style="margin-top:16px;">
+    <div class="grid grid-2">
+      <label class="field"><span>新建题库</span><input type="text" name="name" maxlength="100" placeholder="例如：课程问卷常用题" required></label>
+      <label class="field"><span>说明（可空）</span><input type="text" name="description" maxlength="500"></label>
+    </div>
+    <button class="btn btn-ghost" type="submit">创建题库</button>
+  </form>
+</div>
+
+{% if bank and bank.owner_id == current_user._id %}
+<div class="panel">
+  <div class="panel-head"><h2>题库共享</h2><span class="subtle">共享后，对方能在选题页看到这个题库里的题</span></div>
+  <form method="post" action="{{ url_for('bank.share_bank', bid=bank._id) }}">
+    <div class="grid grid-2">
+      <label class="field">
+        <span>可见范围</span>
+        <select name="visibility">
+          <option value="private" {% if bank.visibility != 'shared' %}selected{% endif %}>仅自己</option>
+          <option value="shared" {% if bank.visibility == 'shared' %}selected{% endif %}>共享</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>共享给（用户名，逗号分隔；留空表示所有登录用户都能看到）</span>
+        <input type="text" name="shared_with" value="{{ shared_bank_names|join('，') }}">
+      </label>
+    </div>
+    <button class="btn btn-ghost" type="submit">保存共享设置</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>题目（{{ heads|length }}）</h2>
+    <span class="subtle">点进去可以看版本历史、生成新版本、恢复旧版本</span>
+  </div>
+
+  <div class="list">
+    {% for item in heads %}
+      <div class="list-row">
+        <div class="list-main">
+          <div class="list-title">
+            <a href="{{ url_for('bank.question', lineage=item.lineage_id) }}">{{ item.title }}</a>
+            <span class="tag">{{ item.type|type_label }}</span>
+            <span class="tag tag-ok">v{{ item.version }}</span>
+            {% if item.visibility == 'shared' %}<span class="tag tag-draft">共享中</span>{% endif %}
+          </div>
+          <div class="list-meta">
+            {{ owner_names.get(item.owner_id, '—') }}
+            · 共 {{ version_counts.get(item.lineage_id, 1) }} 个版本
+            · 被 {{ usage_counts.get(item.lineage_id, 0) }} 份问卷使用
+            {% for tag in item.tags or [] %}· #{{ tag }}{% endfor %}
+            {% for bid in item.bank_ids or [] %}· {{ bank_names.get(bid, '—') }}{% endfor %}
+          </div>
+          {% if item.options %}
+            <div class="option-line">
+              {% for opt in item.options[:6] %}{{ opt.key }}. {{ opt.label }}{% if not loop.last %} ｜ {% endif %}{% endfor %}
+              {% if item.options|length > 6 %}…{% endif %}
+            </div>
+          {% endif %}
+        </div>
+        <div class="question-tools">
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('bank.question', lineage=item.lineage_id) }}">版本</a>
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('stats.question_overview', lineage=item.lineage_id) }}">跨问卷统计</a>
+        </div>
+      </div>
+    {% else %}
+      <div class="empty">这里还没有题目。点右上角「新建题目」，或在问卷里建题（会自动进题库）。</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

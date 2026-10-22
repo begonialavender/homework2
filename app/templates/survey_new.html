@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}新建问卷 · 问卷系统{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>新建问卷</h1>
+    <p class="subtle" style="margin:0;">先填基本信息，创建后再添加题目</p>
+  </div>
+  <a class="btn btn-ghost" href="{{ url_for('surveys.dashboard') }}">返回列表</a>
+</div>
+
+<div class="panel" style="max-width:720px;">
+  <form method="post">
+    <label class="field">
+      <span>问卷标题</span>
+      <input type="text" name="title" value="{{ title }}" maxlength="200" required autofocus>
+    </label>
+    <label class="field">
+      <span>问卷说明（可选）</span>
+      <textarea name="description" maxlength="2000">{{ description }}</textarea>
+    </label>
+    <div class="grid grid-2">
+      <label class="field">
+        <span>截止时间（可选，留空表示不限）</span>
+        <input type="datetime-local" name="deadline">
+      </label>
+      <div>
+        <div class="checks" style="margin-top:28px;">
+          <label><input type="checkbox" name="allow_anonymous"> 允许匿名填写</label>
+          <label><input type="checkbox" name="allow_multiple" checked> 允许同一人多次填写</label>
+        </div>
+      </div>
+    </div>
+    <p class="subtle">
+      说明：填写者始终需要登录；「允许匿名」表示不记录填写者身份。
+      匿名问卷无法按人限制重复提交，因此会允许多人多次填写。
+    </p>
+    <button class="btn" type="submit">创建并添加题目</button>
+  </form>
+</div>
+{% endblock %}

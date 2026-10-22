@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}从题库选题 · {{ survey.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>从题库选题</h1>
+    <p class="subtle" style="margin:0;">
+      {{ survey.title }} · 当前 {{ survey.question_count }} 道题。
+      选用的是某一版的快照：之后题库再怎么改，这道题在本问卷里都不会变。
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('surveys.edit', sid=survey._id) }}">返回问卷</a>
+    <a class="btn btn-ghost" href="{{ url_for('bank.new_question') }}">建一道新题</a>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>可选题（{{ heads|length }}）</h2><span class="subtle">包括我的题和共享给我的题</span></div>
+  <div class="list">
+    {% for item in heads %}
+      {% set chain = chains[item.lineage_id] %}
+      <div class="list-row">
+        <div class="list-main">
+          <div class="list-title">
+            {{ item.title }}
+            <span class="tag">{{ item.type|type_label }}</span>
+            <span class="tag tag-ok">最新 v{{ item.version }}</span>
+            {% if item.owner_id != current_user._id %}<span class="tag tag-draft">共享自 {{ owners.get(item.owner_id, '—') }}</span>{% endif %}
+          </div>
+          <div class="list-meta">
+            共 {{ chain|length }} 个版本
+            {% for bid in item.bank_ids or [] %}· {{ bank_names.get(bid, '—') }}{% endfor %}
+            {% for tag in item.tags or [] %}· #{{ tag }}{% endfor %}
+          </div>
+          {% if item.options %}
+            <div class="option-line">
+              {% for opt in item.options[:6] %}{{ opt.key }}. {{ opt.label }}{% if not loop.last %} ｜ {% endif %}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        <form method="post" action="{{ url_for('surveys.add_from_bank', sid=survey._id) }}"
+              style="display:flex;gap:8px;align-items:center;">
+          <select name="version_id">
+            {% for version in chain|reverse %}
+              <option value="{{ version._id }}">v{{ version.version }}{% if version.change_note %} · {{ version.change_note }}{% endif %}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-ghost btn-sm" type="submit">加入问卷</button>
+        </form>
+      </div>
+    {% else %}
+      <div class="empty">题库里还没有可选的题。</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

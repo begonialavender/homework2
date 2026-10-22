@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}{{ head.title }} · 题库{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ head.title }}</h1>
+    <p class="subtle" style="margin:0;">
+      {{ head.type|type_label }} · 版本链 <span class="mono">{{ head.lineage_id }}</span>
+      · 当前 v{{ head.version }} · 所有者 {{ owner_name }}
+      {% if head.visibility == 'shared' %}· 已共享{% endif %}
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('bank.index') }}">返回题库</a>
+    <a class="btn btn-ghost" href="{{ url_for('bank.usage', lineage=head.lineage_id) }}">使用情况</a>
+    <a class="btn" href="{{ url_for('stats.question_overview', lineage=head.lineage_id) }}">跨问卷统计</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="panel">
+    <div class="panel-head">
+      <h2>v{{ current.version }} 的内容</h2>
+      <span class="tag">{{ current.type|type_label }}</span>
+    </div>
+    <div class="subtle" style="margin-bottom:8px;">
+      创建于 {{ current.created_at|dt }}
+      {% if current.created_by %}· 由 {{ creator_names.get(current.created_by, '—') }} 保存{% endif %}
+      {% if current.change_note %}· 说明：{{ current.change_note }}{% endif %}
+      {% if current.restored_from %}· <span class="tag tag-draft">恢复自旧版本</span>{% endif %}
+    </div>
+    <div class="option-line"><b>题干：</b>{{ current.title }}{% if current.required %} <span class="tag">必答</span>{% endif %}</div>
+    {% if current.options %}
+      {% for opt in current.options %}
+        <div class="option-line">{{ opt.key }}. {{ opt.label }}</div>
+      {% endfor %}
+    {% endif %}
+    {% if current.rules %}
+      <div class="option-line">校验：
+        {% if current.rules.get('min_choices') is not none %}至少 {{ current.rules.get('min_choices') }} 项；{% endif %}
+        {% if current.rules.get('max_choices') is not none %}最多 {{ current.rules.get('max_choices') }} 项；{% endif %}
+        {% if current.rules.get('exact_choices') is not none %}必须 {{ current.rules.get('exact_choices') }} 项；{% endif %}
+        {% if current.rules.get('min_length') is not none %}至少 {{ current.rules.get('min_length') }} 字；{% endif %}
+        {% if current.rules.get('max_length') is not none %}最多 {{ current.rules.get('max_length') }} 字；{% endif %}
+        {% if current.rules.get('min_value') is not none %}最小值 {{ current.rules.get('min_value') }}；{% endif %}
+        {% if current.rules.get('max_value') is not none %}最大值 {{ current.rules.get('max_value') }}；{% endif %}
+        {% if current.rules.get('integer') %}必须为整数；{% endif %}
+      </div>
+    {% endif %}
+    {% if current.tags %}<div class="option-line">标签：{% for tag in current.tags %}#{{ tag }} {% endfor %}</div>{% endif %}
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>版本历史（{{ chain|length }}）</h2><span class="subtle">历史版本只读，恢复会生成新版本</span></div>
+    <div class="list">
+      {% for item in chain|reverse %}
+        <div class="list-row" style="padding:10px 12px;">
+          <div class="list-main">
+            <div class="list-title">
+              v{{ item.version }}
+              {% if item.version == head.version %}<span class="tag tag-ok">当前</span>{% endif %}
+              {% if item.version == current.version %}<span class="tag">正在查看</span>{% endif %}
+            </div>
+            <div class="list-meta">
+              {{ item.created_at|dt }}
+              {% if item.created_by %}· {{ creator_names.get(item.created_by, '—') }}{% endif %}
+              {% if item.change_note %}· {{ item.change_note }}{% endif %}
+            </div>
+          </div>
+          <div class="question-tools">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('bank.question', lineage=head.lineage_id, version=item.version) }}">查看</a>
+            {% if item.version != head.version %}
+              <form method="post" action="{{ url_for('bank.restore', lineage=head.lineage_id, version_no=item.version) }}"
+                    onsubmit="return confirm('按 v{{ item.version }} 的内容生成一个新版本？现有版本不会被改动。');">
+                <button class="btn btn-ghost btn-sm" type="submit">恢复为新版本</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>基于 v{{ head.version }} 生成新版本</h2><span class="subtle">旧版本原样保留，正在使用旧版本的问卷不受影响</span></div>
+  <form method="post" action="{{ url_for('bank.new_version', lineage=head.lineage_id) }}">
+    <div class="grid grid-2">
+      <label class="field">
+        <span>题型（同一道题的题型不可更改）</span>
+        <select disabled>
+          <option>{{ head.type|type_label }}</option>
+        </select>
+      </label>
+      <div class="field" style="padding-top:24px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+          <input type="checkbox" name="required" {% if head.required %}checked{% endif %}> 必答题
+        </label>
+      </div>
+    </div>
+
+    <label class="field">
+      <span>题干</span>
+      <input type="text" name="title" maxlength="500" required value="{{ head.title }}">
+    </label>
+
+    {% if head.type in ('single', 'multiple') %}
+      <label class="field">
+        <span>选项（每行一个）</span>
+        <textarea name="options">{% for opt in head.options %}{{ opt.label }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+      </label>
+    {% endif %}
+
+    {% if head.type == 'multiple' %}
+      <div class="grid grid-3">
+        <label class="field"><span>最少选择</span><input type="number" min="0" name="min_choices" value="{{ head.rules.get('min_choices', '') }}"></label>
+        <label class="field"><span>最多选择</span><input type="number" min="0" name="max_choices" value="{{ head.rules.get('max_choices', '') }}"></label>
+        <label class="field"><span>必须选择</span><input type="number" min="0" name="exact_choices" value="{{ head.rules.get('exact_choices', '') }}"></label>
+      </div>
+    {% endif %}
+
+    {% if head.type == 'text' %}
+      <div class="grid grid-2">
+        <label class="field"><span>最少字数</span><input type="number" min="0" name="min_length" value="{{ head.rules.get('min_length', '') }}"></label>
+        <label class="field"><span>最多字数</span><input type="number" min="0" name="max_length" value="{{ head.rules.get('max_length', '') }}"></label>
+      </div>
+    {% endif %}
+
+    {% if head.type == 'number' %}
+      <div class="grid grid-3">
+        <label class="field"><span>最小值</span><input type="number" step="any" name="min_value" value="{{ head.rules.get('min_value', '') }}"></label>
+        <label class="field"><span>最大值</span><input type="number" step="any" name="max_value" value="{{ head.rules.get('max_value', '') }}"></label>
+        <div class="field" style="padding-top:24px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+            <input type="checkbox" name="integer" {% if head.rules.get('integer') %}checked{% endif %}> 必须为整数
+          </label>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="grid grid-2">
+      <label class="field">
+        <span>标签（逗号分隔）</span>
+        <input type="text" name="tags" maxlength="100" value="{{ (head.tags or [])|join(', ') }}">
+      </label>
+      <label class="field">
+        <span>版本说明</span>
+        <input type="text" name="change_note" maxlength="200" placeholder="例如：把选项改成四档">
+      </label>
+    </div>
+
+    <input type="hidden" name="type" value="{{ head.type }}">
+    <button class="btn" type="submit">生成 v{{ head.version + 1 }}</button>
+  </form>
+</div>
+
+<div class="grid grid-2">
+  <div class="panel">
+    <div class="panel-head"><h2>共享</h2><span class="subtle">共享只影响能否被选用，不改动任何问卷里的内容</span></div>
+    {% if can_manage %}
+      <form method="post" action="{{ url_for('bank.share', lineage=head.lineage_id) }}">
+        <label class="field">
+          <span>可见范围</span>
+          <select name="visibility">
+            <option value="private" {% if head.visibility != 'shared' %}selected{% endif %}>仅自己</option>
+            <option value="shared" {% if head.visibility == 'shared' %}selected{% endif %}>共享</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>共享给（用户名，逗号分隔；留空表示所有登录用户）</span>
+          <input type="text" name="shared_with" value="{{ shared_names|join('，') }}">
+        </label>
+        <button class="btn btn-ghost" type="submit">保存共享设置</button>
+      </form>
+    {% else %}
+      <p class="subtle" style="margin:0;">
+        这道题由 {{ owner_name }} 共享给你，可以选用、也可以基于它生成新版本，但共享设置只有所有者能改。
+      </p>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>所属题库</h2></div>
+    {% if memberships %}
+      <div class="list">
+        {% for item in memberships %}
+          <div class="list-row" style="padding:8px 12px;">
+            <div class="list-main">{{ item.name }}</div>
+            {% if item.owner_id == current_user._id %}
+              <form method="post" action="{{ url_for('bank.remove_from_bank', bid=item._id) }}">
+                <input type="hidden" name="version_id" value="{{ head._id }}">
+                <button class="btn btn-ghost btn-sm" type="submit">移出</button>
+              </form>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="subtle" style="margin:0;">还没有放进任何题库。</p>
+    {% endif %}
+    {% if my_banks %}
+      <form method="post" action="{{ url_for('bank.add_to_bank', bid=my_banks[0]._id) }}"
+            id="add-to-bank-form" style="margin-top:10px;display:flex;gap:8px;align-items:end;">
+        <label class="field" style="margin:0;flex:1;">
+          <span>加入题库</span>
+          <select id="bank-select"
+                  onchange="document.getElementById('add-to-bank-form').action='/bank/' + this.value + '/add';">
+            {% for item in my_banks %}<option value="{{ item._id }}">{{ item.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <input type="hidden" name="version_id" value="{{ head._id }}">
+        <button class="btn btn-ghost" type="submit">加入</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>使用情况（{{ usage|length }} 份问卷）</h2>
+    <a class="subtle" href="{{ url_for('bank.usage', lineage=head.lineage_id) }}">查看全部 →</a>
+  </div>
+  <div class="list">
+    {% for row in usage[:5] %}
+      <div class="list-row" style="padding:8px 12px;">
+        <div class="list-main">
+          <div class="list-title">{{ row.survey.title }}</div>
+          <div class="list-meta">{{ row.owner_name }} · {{ row.survey.status|status_label }} · 使用 v{{ row.versions|join('/v') }} · {{ row.responses }} 份回答</div>
+        </div>
+      </div>
+    {% else %}
+      <div class="empty">还没有问卷使用这道题。</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

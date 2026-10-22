@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}新建题目 · 题库{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>新建题目</h1>
+    <p class="subtle" style="margin:0;">保存到题库后，任何问卷都可以选用这一题；以后修改会生成新版本，旧版本不会消失。</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('bank.index', bank=bank_id) }}">返回题库</a>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('bank.new_question') }}">
+  <div class="panel">
+    <div class="panel-head"><h2>题目内容</h2></div>
+
+    <div class="grid grid-2">
+      <label class="field">
+        <span>题型</span>
+        <select name="type" id="q-type">
+          <option value="single" {% if form.get('type') == 'single' %}selected{% endif %}>单选题</option>
+          <option value="multiple" {% if form.get('type') == 'multiple' %}selected{% endif %}>多选题</option>
+          <option value="text" {% if form.get('type') == 'text' %}selected{% endif %}>文本填空题</option>
+          <option value="number" {% if form.get('type') == 'number' %}selected{% endif %}>数字填空题</option>
+        </select>
+      </label>
+      <div class="field" style="padding-top:24px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+          <input type="checkbox" name="required" {% if form.get('required') %}checked{% endif %}> 必答题
+        </label>
+      </div>
+    </div>
+
+    <label class="field">
+      <span>题干</span>
+      <input type="text" name="title" maxlength="500" required value="{{ form.get('title', '') }}" placeholder="例如：你的年龄是？">
+    </label>
+
+    <div data-type-block="single multiple">
+      <label class="field">
+        <span>选项（每行一个，自动编号 A / B / C …）</span>
+        <textarea name="options" placeholder="男&#10;女&#10;其他">{{ form.get('options', '') }}</textarea>
+      </label>
+    </div>
+
+    <div data-type-block="multiple" class="grid grid-3">
+      <label class="field"><span>最少选择（可空）</span><input type="number" min="0" name="min_choices" value="{{ form.get('min_choices', '') }}"></label>
+      <label class="field"><span>最多选择（可空）</span><input type="number" min="0" name="max_choices" value="{{ form.get('max_choices', '') }}"></label>
+      <label class="field"><span>必须选择（可空）</span><input type="number" min="0" name="exact_choices" value="{{ form.get('exact_choices', '') }}"></label>
+    </div>
+
+    <div data-type-block="text" class="grid grid-2">
+      <label class="field"><span>最少字数（可空）</span><input type="number" min="0" name="min_length" value="{{ form.get('min_length', '') }}"></label>
+      <label class="field"><span>最多字数（可空）</span><input type="number" min="0" name="max_length" value="{{ form.get('max_length', '') }}"></label>
+    </div>
+
+    <div data-type-block="number" class="grid grid-3">
+      <label class="field"><span>最小值（可空）</span><input type="number" step="any" name="min_value" value="{{ form.get('min_value', '') }}"></label>
+      <label class="field"><span>最大值（可空）</span><input type="number" step="any" name="max_value" value="{{ form.get('max_value', '') }}"></label>
+      <div class="field" style="padding-top:24px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+          <input type="checkbox" name="integer" {% if form.get('integer') %}checked{% endif %}> 必须为整数
+        </label>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <label class="field">
+        <span>标签（逗号分隔，可空）</span>
+        <input type="text" name="tags" maxlength="100" value="{{ form.get('tags', '') }}" placeholder="例如：人口统计, 常用">
+      </label>
+      <label class="field">
+        <span>放进哪个题库（可空）</span>
+        <select name="bank_id">
+          <option value="">暂不放入题库</option>
+          {% for item in banks %}
+            <option value="{{ item._id }}" {% if bank_id and item._id == bank_id %}selected{% endif %}>
+              {{ item.name }}{% if item.owner_id != current_user._id %}（共享）{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <label class="field">
+      <span>版本说明（可空）</span>
+      <input type="text" name="change_note" maxlength="200" placeholder="例如：从旧问卷整理出来的常用题">
+    </label>
+  </div>
+
+  <div class="actions" style="display:flex;gap:10px;">
+    <button class="btn" type="submit">保存到题库</button>
+    <a class="btn btn-ghost" href="{{ url_for('bank.index', bank=bank_id) }}">取消</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var select = document.getElementById('q-type');
+    var blocks = document.querySelectorAll('[data-type-block]');
+    function refresh() {
+      var type = select.value;
+      blocks.forEach(function (block) {
+        var types = block.getAttribute('data-type-block').split(' ');
+        var on = types.indexOf(type) !== -1;
+        block.style.display = on ? '' : 'none';
+        block.querySelectorAll('input, textarea, select').forEach(function (el) { el.disabled = !on; });
+      });
+    }
+    select.addEventListener('change', refresh);
+    refresh();
+  })();
+</script>
+{% endblock %}

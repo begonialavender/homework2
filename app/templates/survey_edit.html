@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}{{ survey.title }} · 问卷系统{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ survey.title }}</h1>
+    <div class="subtle">
+      状态：<span class="tag tag-{{ survey.status }}">{{ survey.status|status_label }}</span>
+      · {{ questions|length }} 道题 · {{ response_count }} 份回答
+      {% if survey.deadline %}· 截止 {{ survey.deadline|dt }}{% endif %}
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('surveys.dashboard') }}">返回列表</a>
+    <a class="btn btn-ghost" href="{{ url_for('stats.overview', sid=survey._id) }}">查看统计</a>
+    {% if not frozen %}
+      <a class="btn btn-ghost" href="{{ url_for('surveys.from_bank', sid=survey._id) }}">从题库选题</a>
+    {% endif %}
+    <form method="post" action="{{ url_for('surveys.duplicate', sid=survey._id) }}">
+      <button class="btn btn-ghost" type="submit">复制为新草稿</button>
+    </form>
+  </div>
+</div>
+
+{% if frozen %}
+<div class="panel">
+  <div class="panel-head"><h2>题目已冻结</h2></div>
+  <p class="subtle" style="margin:0 0 8px;">
+    这份问卷已{{ survey.status|status_label }}，题目内容与顺序都已冻结，保证已收集的回答能和题目对得上。
+    要继续改题请用「复制为新草稿」另开一份；旧问卷与它的回答会原样保留。
+  </p>
+  <p class="subtle" style="margin:0;">
+    想改的题在题库里都留着完整版本历史，可在「题库 → 题目」里生成新版本。
+  </p>
+</div>
+{% endif %}
+
+{% if survey.status == 'published' %}
+<div class="panel">
+  <div class="panel-head"><h2>填写链接</h2></div>
+  <p class="mono" style="margin:0 0 8px;">{{ url_for('fill.show', slug=survey.slug, _external=True) }}</p>
+  <p class="subtle" style="margin:0;">把上面的链接发给填写者。填写者需要先登录本系统；问卷关闭或到达截止时间后链接将不再接受回答。</p>
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="panel">
+    <div class="panel-head"><h2>问卷设置</h2></div>
+    <form method="post" action="{{ url_for('surveys.update_settings', sid=survey._id) }}">
+      <label class="field">
+        <span>标题</span>
+        <input type="text" name="title" value="{{ survey.title }}" maxlength="200" required>
+      </label>
+      <label class="field">
+        <span>说明</span>
+        <textarea name="description" maxlength="2000">{{ survey.description or '' }}</textarea>
+      </label>
+      <label class="field">
+        <span>截止时间（留空表示不限）</span>
+        <input type="datetime-local" name="deadline"
+               value="{{ survey.deadline.strftime('%Y-%m-%dT%H:%M') if survey.deadline else '' }}">
+      </label>
+      <div class="checks">
+        <label><input type="checkbox" name="allow_anonymous" {% if survey.allow_anonymous %}checked{% endif %}> 允许匿名填写</label>
+        <label><input type="checkbox" name="allow_multiple" {% if survey.allow_multiple %}checked{% endif %}> 允许同一人多次填写</label>
+      </div>
+      <button class="btn btn-ghost" type="submit">保存设置</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>发布与状态</h2></div>
+    <p class="subtle">
+      发布后问卷才能被填写；关闭后链接仍然存在，但不再接受新的回答。
+      已收集的回答不会因为关闭而丢失。
+    </p>
+    <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% if survey.status != 'published' %}
+        <form method="post" action="{{ url_for('surveys.publish', sid=survey._id) }}">
+          <button class="btn" type="submit">发布问卷</button>
+        </form>
+      {% endif %}
+      {% if survey.status == 'published' %}
+        <form method="post" action="{{ url_for('surveys.close', sid=survey._id) }}">
+          <button class="btn btn-ghost" type="submit">关闭问卷</button>
+        </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('surveys.delete', sid=survey._id) }}"
+            onsubmit="return confirm('删除后问卷、题目和所有回答都会消失，确定吗？');">
+        <button class="btn btn-danger" type="submit">删除问卷</button>
+      </form>
+    </div>
+    <div class="subtle" style="margin-top:18px;">
+      问卷 ID：<span class="mono">{{ survey._id }}</span><br>
+      访问码：<span class="mono">{{ survey.slug }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>题目（{{ questions|length }}）</h2>
+    <span class="subtle">拖动顺序请用「上移 / 下移」</span>
+  </div>
+
+  {% if questions %}
+    {% for q in questions %}
+      {% set summary = jump_summaries[q._id|string] %}
+      <div class="question-card">
+        <div class="question-head">
+          <div>
+            <div class="question-title">
+              第 {{ loop.index }} 题 · {{ q.title }}
+              {% if q.required %}<span class="tag">必答</span>{% endif %}
+            </div>
+            <div class="subtle">
+              {{ q.type|type_label }}
+              {% if q.lineage_id %}
+                · <a href="{{ url_for('bank.question', lineage=q.lineage_id) }}">题库 v{{ q.version or 1 }}</a>
+              {% endif %}
+              {% if q.frozen %}<span class="tag tag-closed">已冻结</span>{% endif %}
+            </div>
+          </div>
+          <div class="question-tools">
+            {% if not frozen %}
+            <form method="post" action="{{ url_for('surveys.move_question', sid=survey._id, qid=q._id) }}">
+              <input type="hidden" name="direction" value="up">
+              <button class="btn btn-ghost btn-sm" type="submit" {% if loop.first %}disabled{% endif %}>上移</button>
+            </form>
+            <form method="post" action="{{ url_for('surveys.move_question', sid=survey._id, qid=q._id) }}">
+              <input type="hidden" name="direction" value="down">
+              <button class="btn btn-ghost btn-sm" type="submit" {% if loop.last %}disabled{% endif %}>下移</button>
+            </form>
+            {% endif %}
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('surveys.edit_question', sid=survey._id, qid=q._id) }}">{% if frozen %}查看{% else %}编辑{% endif %}</a>
+            {% if not frozen %}
+            <form method="post" action="{{ url_for('surveys.delete_question', sid=survey._id, qid=q._id) }}"
+                  onsubmit="return confirm('删除这道题？（题库里的版本仍然保留）');">
+              <button class="btn btn-danger btn-sm" type="submit">删除</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if q.options %}
+          {% for opt in q.options %}
+            <div class="option-line">{{ opt.key }}. {{ opt.label }}</div>
+          {% endfor %}
+        {% endif %}
+
+        {% if q.rules %}
+          <div class="option-line">
+            校验：
+            {% if q.rules.get('min_choices') is not none %}至少 {{ q.rules.get('min_choices') }} 项；{% endif %}
+            {% if q.rules.get('max_choices') is not none %}最多 {{ q.rules.get('max_choices') }} 项；{% endif %}
+            {% if q.rules.get('exact_choices') is not none %}必须 {{ q.rules.get('exact_choices') }} 项；{% endif %}
+            {% if q.rules.get('min_length') is not none %}至少 {{ q.rules.get('min_length') }} 字；{% endif %}
+            {% if q.rules.get('max_length') is not none %}最多 {{ q.rules.get('max_length') }} 字；{% endif %}
+            {% if q.rules.get('min_value') is not none %}最小值 {{ q.rules.get('min_value') }}；{% endif %}
+            {% if q.rules.get('max_value') is not none %}最大值 {{ q.rules.get('max_value') }}；{% endif %}
+            {% if q.rules.get('integer') %}必须为整数；{% endif %}
+          </div>
+        {% endif %}
+
+        {% if summary.rows or summary.default_end %}
+          <div class="rule-list">
+            <b>跳转：</b>
+            {% for row in summary.rows %}
+              {{ row.condition }} → {{ row.target }}{% if not loop.last %}；{% endif %}
+            {% endfor %}
+            {% if summary.rows and summary.default_end %}；{% endif %}
+            {% if summary.default_end %}其余情况 → 结束问卷{% endif %}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">还没有题目，用下面的表单添加第一道题</div>
+  {% endif %}
+</div>
+
+{% if not frozen %}
+<div class="panel">
+  <div class="panel-head"><h2>添加题目</h2></div>
+  <form method="post" action="{{ url_for('surveys.add_question', sid=survey._id) }}" id="add-question-form">
+    <div class="grid grid-2">
+      <label class="field">
+        <span>题型</span>
+        <select name="type" id="q-type">
+          <option value="single">单选题</option>
+          <option value="multiple">多选题</option>
+          <option value="text">文本填空题</option>
+          <option value="number">数字填空题</option>
+        </select>
+      </label>
+      <div class="field" style="padding-top:24px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+          <input type="checkbox" name="required"> 必答题
+        </label>
+      </div>
+    </div>
+
+    <label class="field">
+      <span>题干</span>
+      <input type="text" name="title" maxlength="500" required placeholder="例如：你的性别是？">
+    </label>
+
+    <div data-type-block="single multiple">
+      <label class="field">
+        <span>选项（每行一个，系统自动编号 A / B / C …）</span>
+        <textarea name="options" placeholder="男&#10;女&#10;其他"></textarea>
+      </label>
+    </div>
+
+    <div data-type-block="multiple" class="grid grid-3">
+      <label class="field"><span>最少选择（可空）</span><input type="number" name="min_choices" min="0"></label>
+      <label class="field"><span>最多选择（可空）</span><input type="number" name="max_choices" min="0"></label>
+      <label class="field"><span>必须选择（可空）</span><input type="number" name="exact_choices" min="0"></label>
+    </div>
+
+    <div data-type-block="text" class="grid grid-2">
+      <label class="field"><span>最少字数（可空）</span><input type="number" name="min_length" min="0"></label>
+      <label class="field"><span>最多字数（可空）</span><input type="number" name="max_length" min="0"></label>
+    </div>
+
+    <div data-type-block="number" class="grid grid-3">
+      <label class="field"><span>最小值（可空）</span><input type="number" step="any" name="min_value"></label>
+      <label class="field"><span>最大值（可空）</span><input type="number" step="any" name="max_value"></label>
+      <div class="field" style="padding-top:24px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+          <input type="checkbox" name="integer"> 必须为整数
+        </label>
+      </div>
+    </div>
+
+    <button class="btn" type="submit">添加题目</button>
+    <span class="subtle">新题会同时保存进题库（v1），以后别的问卷可以直接选用</span>
+  </form>
+</div>
+{% else %}
+<div class="panel">
+  <div class="panel-head"><h2>添加题目</h2></div>
+  <p class="subtle" style="margin:0;">问卷已{{ survey.status|status_label }}，不能再添加题目。</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var select = document.getElementById('q-type');
+    var blocks = document.querySelectorAll('[data-type-block]');
+    function refresh() {
+      var type = select.value;
+      blocks.forEach(function (block) {
+        var types = block.getAttribute('data-type-block').split(' ');
+        var on = types.indexOf(type) !== -1;
+        block.style.display = on ? '' : 'none';
+        block.querySelectorAll('input, textarea, select').forEach(function (el) {
+          el.disabled = !on;
+        });
+      });
+    }
+    select.addEventListener('change', refresh);
+    refresh();
+  })();
+</script>
+{% endblock %}

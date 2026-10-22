@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}无法填写 · {{ survey.title }}{% endblock %}
+{% block content %}
+<div class="fill-wrap" style="max-width:560px;">
+  <div class="panel" style="text-align:center;padding:44px 28px;">
+    <h1>{{ survey.title }}</h1>
+    <p class="subtle" style="margin-bottom:22px;">{{ reason }}</p>
+    <a class="btn btn-ghost" href="{{ url_for('surveys.dashboard') }}">返回我的问卷</a>
+  </div>
+</div>
+{% endblock %}
